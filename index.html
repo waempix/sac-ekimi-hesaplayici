@@ -1040,11 +1040,14 @@
         }
         
         function updateAdBudgetTotal() {
+            const totalElement = document.getElementById('totalYearlyAdBudget');
+            if (!totalElement) return; // Element henüz yüklenmemiş
+            
             const total = months.reduce((sum, _, index) => {
                 const input = document.getElementById(`adbudget${index}`);
                 return sum + (parseFloat(input?.value) || 0);
             }, 0);
-            document.getElementById('totalYearlyAdBudget').textContent = formatEuro(total);
+            totalElement.textContent = formatEuro(total);
         }
         
         function getMonthlyAdBudgets() {
