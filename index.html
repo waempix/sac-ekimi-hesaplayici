@@ -459,6 +459,34 @@
                 padding: 6px 3px;
             }
         }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 20px;
+            }
+            
+            .tabs, .btn, .header .subtitle {
+                display: none !important;
+            }
+            
+            #summaryReport {
+                padding: 0 !important;
+            }
+            
+            .tab-content {
+                display: none !important;
+            }
+            
+            #ozet-rapor {
+                display: block !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -475,6 +503,7 @@
             <button class="tab" onclick="switchTab('degisken')">💵 Değişken Maliyetler</button>
             <button class="tab" onclick="switchTab('reklam')">📱 Reklam</button>
             <button class="tab" onclick="switchTab('projeksiyon')">📈 Projeksiyon</button>
+            <button class="tab" onclick="switchTab('ozet-rapor')" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); color: white; border-radius: 8px 8px 0 0;">📊 Özet Rapor</button>
         </div>
         
         <!-- SABİT MASRAFLAR -->
@@ -635,12 +664,12 @@
                         <label for="salesCommissionType">Komisyon Tipi</label>
                         <select id="salesCommissionType" onchange="toggleSalesCommission()">
                             <option value="fixed">Sabit Tutar (€/hasta)</option>
-                            <option value="percentage">Yüzde (%)</option>
+                            <option value="percentage" selected>Yüzde (%)</option>
                         </select>
                     </div>
                     <div class="input-group">
-                        <label for="salesCommissionValue" id="salesCommissionLabel">Hasta Başına Komisyon (€)</label>
-                        <input type="number" id="salesCommissionValue" value="100" min="0" step="10">
+                        <label for="salesCommissionValue" id="salesCommissionLabel">Komisyon Oranı (%)</label>
+                        <input type="number" id="salesCommissionValue" value="5" min="0" step="0.5">
                     </div>
                 </div>
                 
@@ -651,10 +680,15 @@
             </div>
             
             <div class="section">
-                <h2>💰 Sabit Aylık Pazarlama Bütçesi (Opsiyonel)</h2>
-                <div class="input-group">
-                    <label for="fixedAdBudget">Aylık Sabit Bütçe (€) <span class="label-hint">Banner, sosyal medya vs.</span></label>
-                    <input type="number" id="fixedAdBudget" value="0" min="0" step="100">
+                <h2>💰 Aylık Reklam Bütçesi (Mevsimsel)</h2>
+                <div class="alert alert-info">
+                    <span>ℹ️</span>
+                    <span>Her ay için ayrı reklam bütçesi belirleyin. Yoğun sezonda artırabilirsiniz.</span>
+                </div>
+                <div class="seasonal-grid" id="monthlyAdBudgets"></div>
+                <div class="total-box" style="margin-top: 15px;">
+                    <div class="total-label">Yıllık Toplam Reklam Bütçesi</div>
+                    <div class="total-value" id="totalYearlyAdBudget">€0</div>
                 </div>
             </div>
         </div>
@@ -684,6 +718,24 @@
                 </div>
             </div>
         </div>
+        
+        <!-- ÖZET RAPOR -->
+        <div id="ozet-rapor" class="tab-content">
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="window.print()">🖨️ Yazdır / PDF Kaydet</button>
+                <button class="btn btn-success" onclick="copyReportToClipboard()">📋 Kopyala</button>
+            </div>
+            
+            <div id="summaryReport" style="background: white; padding: 40px; border-radius: 12px; max-width: 1000px; margin: 0 auto;">
+                <div style="text-align: center; margin-bottom: 40px; border-bottom: 3px solid #667eea; padding-bottom: 20px;">
+                    <h1 style="color: #2d3748; font-size: 32px; margin-bottom: 10px;">💰 Saç Ekimi Kliniği</h1>
+                    <h2 style="color: #667eea; font-size: 24px; margin-bottom: 5px;">Maliyet & Karlılık Analizi</h2>
+                    <p style="color: #718096; font-size: 14px;" id="reportDate"></p>
+                </div>
+                
+                <div id="reportContent"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -691,11 +743,29 @@
                        'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
         
         const highSeasonMonths = [0, 1, 10, 11];
-        const monthlyPatientsDefault = [15, 18, 10, 8, 6, 5, 4, 5, 8, 12, 16, 20];
+        const monthlyPatientsDefault = [40, 30, 15, 5, 5, 5, 5, 5, 10, 10, 30, 40];
         
-        let fixedCosts = [];
-        let employees = [];
-        let variableCosts = [];
+        let fixedCosts = [
+            { id: 1, name: 'Kira Ekip Evi', amount: 450 },
+            { id: 2, name: 'Elektrik Su Internet', amount: 250 },
+            { id: 3, name: 'Kira Klinik', amount: 750 },
+            { id: 4, name: 'Sabit Reklamcı', amount: 300 },
+            { id: 5, name: 'Vergiler', amount: 300 }
+        ];
+        let fixedCostId = 6;
+        
+        let employees = [
+            { id: 1, name: 'Doktor', salary: 500, accommodation: 0 },
+            { id: 2, name: 'Çevirmen', salary: 500, accommodation: 0 },
+            { id: 3, name: 'Eren', salary: 800, accommodation: 0 }
+        ];
+        let employeeId = 4;
+        
+        let variableCosts = [
+            { id: 1, name: 'Ekip', amount: 350, activeMonths: [0, 1, 10, 11] },
+            { id: 2, name: 'Malzeme', amount: 50, activeMonths: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
+        ];
+        let variableCostId = 3;
         
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -706,6 +776,8 @@
             
             if (tabName === 'projeksiyon') {
                 calculateProjection();
+            } else if (tabName === 'ozet-rapor') {
+                generateSummaryReport();
             }
         }
         
@@ -955,6 +1027,33 @@
             `).join('');
         }
         
+        function renderMonthlyAdBudgets() {
+            const monthlyAdBudgetsDefault = [300, 300, 1500, 1500, 1500, 1500, 1500, 3000, 3000, 3000, 300, 3000];
+            const container = document.getElementById('monthlyAdBudgets');
+            container.innerHTML = months.map((month, index) => `
+                <div class="month-input ${highSeasonMonths.includes(index) ? 'high-season' : ''}">
+                    <div class="month-label">${month}</div>
+                    <input type="number" id="adbudget${index}" value="${monthlyAdBudgetsDefault[index]}" min="0" step="50" onchange="updateAdBudgetTotal()">
+                </div>
+            `).join('');
+            updateAdBudgetTotal();
+        }
+        
+        function updateAdBudgetTotal() {
+            const total = months.reduce((sum, _, index) => {
+                const input = document.getElementById(`adbudget${index}`);
+                return sum + (parseFloat(input?.value) || 0);
+            }, 0);
+            document.getElementById('totalYearlyAdBudget').textContent = formatEuro(total);
+        }
+        
+        function getMonthlyAdBudgets() {
+            return months.map((_, index) => {
+                const input = document.getElementById(`adbudget${index}`);
+                return parseFloat(input?.value) || 0;
+            });
+        }
+        
         function getMonthlyPatients() {
             return months.map((_, index) => {
                 const input = document.getElementById(`month${index}`);
@@ -968,13 +1067,13 @@
             const pricePerPatient = parseFloat(document.getElementById('pricePerPatient').value) || 0;
             const partners = parseInt(document.getElementById('partners').value) || 1;
             const patientGrowth = parseFloat(document.getElementById('patientGrowth').value) / 100 || 0;
-            const fixedAdBudget = parseFloat(document.getElementById('fixedAdBudget').value) || 0;
             
             const adCommissionRate = parseFloat(document.getElementById('adCommissionRate').value) / 100 || 0;
             const salesCommissionType = document.getElementById('salesCommissionType').value;
             const salesCommissionValue = parseFloat(document.getElementById('salesCommissionValue').value) || 0;
             
             const monthlyPatientsYear1 = getMonthlyPatients();
+            const monthlyAdBudgetsYear1 = getMonthlyAdBudgets();
             const totalFixedCostPerMonth = fixedCosts.reduce((sum, item) => sum + item.amount, 0);
             const totalEmployeeCostPerMonth = employees.reduce((sum, emp) => sum + emp.salary + emp.accommodation, 0);
             
@@ -1006,11 +1105,12 @@
                 
                 const adCommissionMonth = patients * adCommissionPerPatient;
                 const salesCommissionMonth = patients * salesCommissionPerPatient;
-                const fixedAdMonth = fixedAdBudget;
+                const fixedAdMonth = monthlyAdBudgetsYear1[month];
                 
                 const totalExpense = fixedCostsMonth + employeeCostsMonth + variableCostsMonth + 
                                    adCommissionMonth + salesCommissionMonth + fixedAdMonth;
                 const netProfit = revenue - totalExpense;
+                const profitPerPartner = netProfit / partners;
                 
                 monthlyData.push({
                     month: months[month],
@@ -1024,6 +1124,7 @@
                     fixedAd: fixedAdMonth,
                     totalExpense,
                     netProfit,
+                    profitPerPartner,
                     isHighSeason: highSeasonMonths.includes(month)
                 });
             }
@@ -1052,12 +1153,18 @@
                 
                 const yearAdCommission = yearPatients * adCommissionPerPatient;
                 const yearSalesCommission = yearPatients * salesCommissionPerPatient;
-                const yearFixedAd = fixedAdBudget * 12;
+                
+                // Yıllık reklam bütçesi - her ayın bütçesini enflasyonla çarp
+                let yearFixedAd = 0;
+                monthlyAdBudgetsYear1.forEach(monthBudget => {
+                    yearFixedAd += monthBudget * Math.pow(1 + costIncrease, year - 1);
+                });
                 
                 const yearTotalExpense = yearFixedCosts + yearEmployeeCosts + yearVariableCosts + 
                                         yearAdCommission + yearSalesCommission + yearFixedAd;
                 const yearNetProfit = yearRevenue - yearTotalExpense;
                 const profitPerPartner = yearNetProfit / partners;
+                const monthlyProfitPerPartner = profitPerPartner / 12;
                 const profitMargin = yearRevenue > 0 ? (yearNetProfit / yearRevenue) * 100 : 0;
                 
                 yearlyData.push({
@@ -1073,6 +1180,7 @@
                     totalExpense: yearTotalExpense,
                     netProfit: yearNetProfit,
                     profitPerPartner,
+                    monthlyProfitPerPartner,
                     profitMargin
                 });
             }
@@ -1147,6 +1255,7 @@
                         <th>Sabit Reklam</th>
                         <th>Toplam Masraf</th>
                         <th>Net Kar</th>
+                        <th>Ortak/Aylık</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1163,6 +1272,7 @@
                             <td>${formatEuro(m.fixedAd)}</td>
                             <td>${formatEuro(m.totalExpense)}</td>
                             <td class="${m.netProfit >= 0 ? 'positive' : 'negative'}">${formatEuro(m.netProfit)}</td>
+                            <td class="${m.profitPerPartner >= 0 ? 'positive' : 'negative'}" style="background: ${m.profitPerPartner >= 0 ? '#f0fff4' : '#fff5f5'}; font-weight: bold;">${formatEuro(m.profitPerPartner)}</td>
                         </tr>
                     `).join('')}
                     <tr style="background: #e2e8f0; font-weight: 700;">
@@ -1178,6 +1288,9 @@
                         <td>${formatEuro(data.reduce((s, m) => s + m.totalExpense, 0))}</td>
                         <td class="${data.reduce((s, m) => s + m.netProfit, 0) >= 0 ? 'positive' : 'negative'}">
                             ${formatEuro(data.reduce((s, m) => s + m.netProfit, 0))}
+                        </td>
+                        <td class="${data.reduce((s, m) => s + m.profitPerPartner, 0) >= 0 ? 'positive' : 'negative'}" style="background: ${data.reduce((s, m) => s + m.profitPerPartner, 0) >= 0 ? '#f0fff4' : '#fff5f5'}; font-weight: bold;">
+                            ${formatEuro(data.reduce((s, m) => s + m.profitPerPartner, 0))}
                         </td>
                     </tr>
                 </tbody>
@@ -1202,7 +1315,8 @@
                         <th>Toplam Masraf</th>
                         <th>Net Kar</th>
                         <th>Kar Marjı</th>
-                        <th>Ortak/Kar</th>
+                        <th>Ortak/Kar (Yıllık)</th>
+                        <th>Ortak/Aylık</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1221,6 +1335,7 @@
                             <td class="${y.netProfit >= 0 ? 'positive' : 'negative'}">${formatEuro(y.netProfit)}</td>
                             <td>${y.profitMargin.toFixed(1)}%</td>
                             <td class="${y.profitPerPartner >= 0 ? 'positive' : 'negative'}">${formatEuro(y.profitPerPartner)}</td>
+                            <td class="${y.monthlyProfitPerPartner >= 0 ? 'positive' : 'negative'}" style="background: ${y.monthlyProfitPerPartner >= 0 ? '#f0fff4' : '#fff5f5'}; font-weight: bold;">${formatEuro(y.monthlyProfitPerPartner)}</td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -1231,11 +1346,272 @@
         
         // Initial setup
         renderMonthlyInputs();
+        renderMonthlyAdBudgets();
         renderMonthCheckboxes();
         renderFixedCosts();
         renderEmployees();
         renderVariableCosts();
         updateCommissionDisplays();
+        
+        // ÖZET RAPOR
+        function generateSummaryReport() {
+            const pricePerPatient = parseFloat(document.getElementById('pricePerPatient').value) || 0;
+            const partners = parseInt(document.getElementById('partners').value) || 1;
+            const costIncrease = parseFloat(document.getElementById('costIncrease').value) || 0;
+            
+            const adCommissionRate = parseFloat(document.getElementById('adCommissionRate').value) || 0;
+            const salesCommissionType = document.getElementById('salesCommissionType').value;
+            const salesCommissionValue = parseFloat(document.getElementById('salesCommissionValue').value) || 0;
+            const fixedAdBudget = parseFloat(document.getElementById('fixedAdBudget').value) || 0;
+            
+            const monthlyPatients = getMonthlyPatients();
+            const totalYear1Patients = monthlyPatients.reduce((a, b) => a + b, 0);
+            
+            // Tarih
+            const now = new Date();
+            document.getElementById('reportDate').textContent = now.toLocaleDateString('tr-TR', { 
+                year: 'numeric', month: 'long', day: 'numeric' 
+            });
+            
+            let html = '';
+            
+            // SABİT MASRAFLAR
+            html += '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">💶 Sabit Masraflar (Aylık)</h3>';
+            if (fixedCosts.length > 0) {
+                html += '<table style="width: 100%; border-collapse: collapse;">';
+                fixedCosts.forEach(item => {
+                    html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 10px; color: #4a5568;">${item.name}</td>
+                        <td style="padding: 10px; text-align: right; font-weight: 600; color: #2d3748;">${formatEuro(item.amount)}</td>
+                    </tr>`;
+                });
+                const total = fixedCosts.reduce((sum, item) => sum + item.amount, 0);
+                html += `<tr style="background: #f7fafc; font-weight: 700;">
+                    <td style="padding: 12px; color: #2d3748;">TOPLAM</td>
+                    <td style="padding: 12px; text-align: right; color: #667eea; font-size: 18px;">${formatEuro(total)}</td>
+                </tr>`;
+                html += '</table>';
+            } else {
+                html += '<p style="color: #718096; font-style: italic;">Henüz sabit masraf eklenmedi.</p>';
+            }
+            html += '</div>';
+            
+            // PERSONEL
+            html += '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">👥 Personel (Aylık)</h3>';
+            if (employees.length > 0) {
+                html += '<table style="width: 100%; border-collapse: collapse;">';
+                employees.forEach(emp => {
+                    const total = emp.salary + emp.accommodation;
+                    html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 10px; color: #4a5568;">${emp.name}</td>
+                        <td style="padding: 10px; color: #718096; font-size: 13px;">
+                            Maaş: ${formatEuro(emp.salary)}${emp.accommodation > 0 ? ` + Konaklama: ${formatEuro(emp.accommodation)}` : ''}
+                        </td>
+                        <td style="padding: 10px; text-align: right; font-weight: 600; color: #2d3748;">${formatEuro(total)}</td>
+                    </tr>`;
+                });
+                const total = employees.reduce((sum, emp) => sum + emp.salary + emp.accommodation, 0);
+                html += `<tr style="background: #f7fafc; font-weight: 700;">
+                    <td style="padding: 12px; color: #2d3748;">TOPLAM</td>
+                    <td style="padding: 12px;"></td>
+                    <td style="padding: 12px; text-align: right; color: #667eea; font-size: 18px;">${formatEuro(total)}</td>
+                </tr>`;
+                html += '</table>';
+            } else {
+                html += '<p style="color: #718096; font-style: italic;">Henüz personel eklenmedi.</p>';
+            }
+            html += '</div>';
+            
+            // DEĞİŞKEN MALİYETLER
+            html += '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">💵 Değişken Maliyetler (Hasta Başına)</h3>';
+            if (variableCosts.length > 0) {
+                html += '<table style="width: 100%; border-collapse: collapse;">';
+                variableCosts.forEach(item => {
+                    const monthNames = item.activeMonths.length === 12 
+                        ? 'Tüm Aylar' 
+                        : item.activeMonths.map(m => months[m].substring(0, 3)).join(', ');
+                    html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 10px; color: #4a5568;">${item.name}</td>
+                        <td style="padding: 10px; color: #718096; font-size: 13px;">${monthNames}</td>
+                        <td style="padding: 10px; text-align: right; font-weight: 600; color: #2d3748;">${formatEuro(item.amount)}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+            } else {
+                html += '<p style="color: #718096; font-style: italic;">Henüz değişken maliyet eklenmedi.</p>';
+            }
+            html += '</div>';
+            
+            // KOMİSYONLAR
+            html += '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">📱 Komisyonlar (Hasta Başına)</h3>';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            
+            const adCommissionPerPatient = pricePerPatient * (adCommissionRate / 100);
+            html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px; color: #4a5568;">Reklam Firması</td>
+                <td style="padding: 10px; color: #718096; font-size: 13px;">%${adCommissionRate}</td>
+                <td style="padding: 10px; text-align: right; font-weight: 600; color: #2d3748;">${formatEuro(adCommissionPerPatient)}</td>
+            </tr>`;
+            
+            let salesCommissionPerPatient;
+            if (salesCommissionType === 'fixed') {
+                salesCommissionPerPatient = salesCommissionValue;
+                html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px; color: #4a5568;">Satıcı</td>
+                    <td style="padding: 10px; color: #718096; font-size: 13px;">Sabit</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 600; color: #2d3748;">${formatEuro(salesCommissionPerPatient)}</td>
+                </tr>`;
+            } else {
+                salesCommissionPerPatient = pricePerPatient * (salesCommissionValue / 100);
+                html += `<tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px; color: #4a5568;">Satıcı</td>
+                    <td style="padding: 10px; color: #718096; font-size: 13px;">%${salesCommissionValue}</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 600; color: #2d3748;">${formatEuro(salesCommissionPerPatient)}</td>
+                </tr>`;
+            }
+            
+            html += '</table>';
+            html += '</div>';
+            
+            // AYLIK REKLAM BÜTÇESİ
+            const monthlyAdBudgets = getMonthlyAdBudgets();
+            const totalYearlyAdBudget = monthlyAdBudgets.reduce((sum, budget) => sum + budget, 0);
+            
+            html += '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">💰 Aylık Reklam Bütçesi (Mevsimsel)</h3>';
+            html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">';
+            monthlyAdBudgets.forEach((budget, index) => {
+                const isHigh = highSeasonMonths.includes(index);
+                html += `<div style="padding: 10px; background: ${isHigh ? '#fef5e7' : '#f7fafc'}; border-radius: 8px; text-align: center; ${isHigh ? 'border: 2px solid #f39c12;' : ''}">
+                    <div style="font-size: 12px; color: #4a5568; margin-bottom: 5px;">${months[index]}</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #2d3748;">${formatEuro(budget)}</div>
+                </div>`;
+            });
+            html += '</div>';
+            html += `<div style="margin-top: 15px; padding: 15px; background: #f7fafc; border-radius: 8px; text-align: center;">
+                <span style="color: #4a5568; margin-right: 10px;">Yıllık Toplam Reklam Bütçesi:</span>
+                <span style="font-size: 24px; font-weight: 700; color: #667eea;">${formatEuro(totalYearlyAdBudget)}</span>
+            </div>`;
+            html += '</div>';
+            
+            // AYLIK HASTA DAĞILIMI
+            html += '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">📅 Aylık Hasta Dağılımı (1. Yıl)</h3>';
+            html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">';
+            monthlyPatients.forEach((count, index) => {
+                const isHigh = highSeasonMonths.includes(index);
+                html += `<div style="padding: 10px; background: ${isHigh ? '#fef5e7' : '#f7fafc'}; border-radius: 8px; text-align: center; ${isHigh ? 'border: 2px solid #f39c12;' : ''}">
+                    <div style="font-size: 12px; color: #4a5568; margin-bottom: 5px;">${months[index]}</div>
+                    <div style="font-size: 18px; font-weight: 700; color: #2d3748;">${count}</div>
+                </div>`;
+            });
+            html += '</div>';
+            html += `<div style="margin-top: 15px; padding: 15px; background: #f7fafc; border-radius: 8px; text-align: center;">
+                <span style="color: #4a5568; margin-right: 10px;">Toplam Yıllık Hasta:</span>
+                <span style="font-size: 24px; font-weight: 700; color: #667eea;">${totalYear1Patients}</span>
+            </div>`;
+            html += '</div>';
+            
+            // 5 YILLIK PROJEKSİYON - Basitleştirilmiş
+            html += '<div style="margin-bottom: 30px; page-break-before: always;">';
+            html += '<h3 style="color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">📊 5 Yıllık Projeksiyon</h3>';
+            
+            // Hızlı projeksiyon hesapla
+            const totalFixedCostPerMonth = fixedCosts.reduce((sum, item) => sum + item.amount, 0);
+            const totalEmployeeCostPerMonth = employees.reduce((sum, emp) => sum + emp.salary + emp.accommodation, 0);
+            const patientGrowth = parseFloat(document.getElementById('patientGrowth').value) / 100 || 0;
+            
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+            html += `<thead>
+                <tr style="background: #667eea; color: white;">
+                    <th style="padding: 12px; text-align: left;">Yıl</th>
+                    <th style="padding: 12px; text-align: right;">Hasta</th>
+                    <th style="padding: 12px; text-align: right;">Gelir</th>
+                    <th style="padding: 12px; text-align: right;">Masraf</th>
+                    <th style="padding: 12px; text-align: right;">Net Kar (Yıllık)</th>
+                    <th style="padding: 12px; text-align: right;">Aylık Ort. Kar</th>
+                    <th style="padding: 12px; text-align: right;">Ortak/Kar (Yıllık)</th>
+                    <th style="padding: 12px; text-align: right;">Ortak/Aylık Kar</th>
+                </tr>
+            </thead><tbody>`;
+            
+            for (let year = 1; year <= 5; year++) {
+                const yearPatients = Math.round(totalYear1Patients * Math.pow(1 + patientGrowth, year - 1));
+                const yearRevenue = yearPatients * pricePerPatient;
+                
+                const yearFixedCosts = totalFixedCostPerMonth * 12 * Math.pow(1 + costIncrease / 100, year - 1);
+                const yearEmployeeCosts = totalEmployeeCostPerMonth * 12 * Math.pow(1 + costIncrease / 100, year - 1);
+                
+                let yearVariableCosts = 0;
+                for (let month = 0; month < 12; month++) {
+                    const monthPatients = Math.round(monthlyPatients[month] * Math.pow(1 + patientGrowth, year - 1));
+                    variableCosts.forEach(item => {
+                        if (item.activeMonths.includes(month)) {
+                            yearVariableCosts += monthPatients * item.amount;
+                        }
+                    });
+                }
+                
+                const yearAdCommission = yearPatients * adCommissionPerPatient;
+                const yearSalesCommission = yearPatients * salesCommissionPerPatient;
+                
+                // Yıllık reklam bütçesi - her ayın bütçesini enflasyonla çarp
+                const monthlyAdBudgets = getMonthlyAdBudgets();
+                let yearFixedAd = 0;
+                monthlyAdBudgets.forEach(monthBudget => {
+                    yearFixedAd += monthBudget * Math.pow(1 + costIncrease / 100, year - 1);
+                });
+                
+                const yearTotalExpense = yearFixedCosts + yearEmployeeCosts + yearVariableCosts + yearAdCommission + yearSalesCommission + yearFixedAd;
+                const yearNetProfit = yearRevenue - yearTotalExpense;
+                const profitPerPartner = yearNetProfit / partners;
+                const monthlyAvgProfit = yearNetProfit / 12;
+                const monthlyProfitPerPartner = profitPerPartner / 12;
+                
+                const rowColor = yearNetProfit >= 0 ? (year === 1 ? '#e6fffa' : 'white') : '#fff5f5';
+                html += `<tr style="background: ${rowColor}; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px; font-weight: 600;">${year}. Yıl</td>
+                    <td style="padding: 10px; text-align: right;">${yearPatients}</td>
+                    <td style="padding: 10px; text-align: right;">${formatEuro(yearRevenue)}</td>
+                    <td style="padding: 10px; text-align: right;">${formatEuro(yearTotalExpense)}</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 700; color: ${yearNetProfit >= 0 ? '#48bb78' : '#f56565'};">${formatEuro(yearNetProfit)}</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 600; color: ${monthlyAvgProfit >= 0 ? '#667eea' : '#f56565'};">${formatEuro(monthlyAvgProfit)}</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 700; color: ${profitPerPartner >= 0 ? '#48bb78' : '#f56565'};">${formatEuro(profitPerPartner)}</td>
+                    <td style="padding: 10px; text-align: right; font-weight: 700; color: ${monthlyProfitPerPartner >= 0 ? '#38a169' : '#f56565'}; background: ${monthlyProfitPerPartner >= 0 ? '#f0fff4' : '#fff5f5'};">${formatEuro(monthlyProfitPerPartner)}</td>
+                </tr>`;
+            }
+            
+            html += '</tbody></table>';
+            html += '</div>';
+            
+            // GENEL BİLGİLER
+            html += '<div style="margin-top: 30px; padding: 20px; background: #f7fafc; border-radius: 12px;">';
+            html += '<h3 style="color: #2d3748; margin-bottom: 15px;">📋 Genel Bilgiler</h3>';
+            html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">';
+            html += `<div><span style="color: #718096;">Hasta Başına Gelir:</span> <strong>${formatEuro(pricePerPatient)}</strong></div>`;
+            html += `<div><span style="color: #718096;">Ortak Sayısı:</span> <strong>${partners}</strong></div>`;
+            html += `<div><span style="color: #718096;">Yıllık Maliyet Artışı:</span> <strong>%${costIncrease}</strong></div>`;
+            html += `<div><span style="color: #718096;">Yıllık Hasta Artışı:</span> <strong>%${(patientGrowth * 100).toFixed(1)}</strong></div>`;
+            html += '</div>';
+            html += '</div>';
+            
+            document.getElementById('reportContent').innerHTML = html;
+        }
+        
+        function copyReportToClipboard() {
+            const reportElement = document.getElementById('summaryReport');
+            const text = reportElement.innerText;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Rapor panoya kopyalandı! WhatsApp veya email\'e yapıştırabilirsiniz.');
+            }).catch(() => {
+                alert('❌ Kopyalama başarısız. Lütfen manuel olarak seçip kopyalayın.');
+            });
+        }
     </script>
 </body>
 </html>
